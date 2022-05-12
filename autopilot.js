@@ -8,7 +8,6 @@ const persistentLog = "log.autopilot.txt";
 const factionManagerOutputFile = "/Temp/affordable-augs.txt"; // Temp file produced by faction manager with status information
 
 let options = null; // The options used at construction time
-// TODO: Currently these may as well be hard-coded, args are lost when various other scripts kill and restart us.
 const argsSchema = [ // The set of all command line arguments
 	['next-bn', 12], // If we destroy the current BN, the next BN to start
 	['disable-auto-destroy-bn', false], // Set to true if you do not want to auto destroy this BN when done
@@ -285,11 +284,11 @@ async function checkOnRunningScripts(ns, player) {
 
 	// TODO: Take charge to stanek.acceptGift and place fragments before installing augs and ascending for the first time
 	// Once stanek's gift is accepted and not charged, launch it first
-	if ((13 in unlockedSFs) && installedAugmentations.includes(`Stanek's Gift - Genesis`) && !stanekLaunched) {
-		stanekLaunched = true;
-		if (!findScript('stanek.js'))
-			launchScriptHelper(ns, 'stanek.js');
-		await ns.asleep(2000); // Stanek will launch a version of daemon that works with charging. Give it time so we detect it as started below.
+	let stanekRunning = (13 in unlockedSFs) && findScript('stanek.js') !== undefined;
+	if ((13 in unlockedSFs) && installedAugmentations.includes(`Stanek's Gift - Genesis`) && !stanekLaunched && !stanekRunning) {
+		stanekLaunched = true; // Once we've know we've launched stanek once, we never have to again this reset.
+		launchScriptHelper(ns, 'stanek.js');
+		stanekRunning = true;
 	}
 
 	// Ensure daemon.js is running in some form
@@ -305,9 +304,9 @@ async function checkOnRunningScripts(ns, player) {
 	if (options['enable-bladeburner']) daemonArgs.push('--run-script', getFilePath('bladeburner.js'));
 	// If we have SF4, but not level 3, instruct daemon.js to reserve additional home RAM
 	if ((4 in unlockedSFs) && unlockedSFs[4] < 3)
-		daemonArgs.push('--reserved-ram ', 32 * (unlockedSFs[4] == 2 ? 4 : 16));
-	// Launch or re-launch daemon with the desired arguments
-	if (!daemon || player.hacking >= hackThreshold && !daemon.args.includes("--looping-mode")) {
+		daemonArgs.push('--reserved-ram', 32 * (unlockedSFs[4] == 2 ? 4 : 16));
+	// Launch or re-launch daemon with the desired arguments (only if it wouldn't get in the way of stanek charging)
+	if ((!daemon || player.hacking >= hackThreshold && !daemon.args.includes("--looping-mode")) && !stanekRunning) {
 		if (player.hacking >= hackThreshold)
 			log(ns, `INFO: Hack level (${player.hacking}) is >= ${hackThreshold} (--high-hack-threshold): Starting daemon.js in high-performance hacking mode.`);
 		launchScriptHelper(ns, 'daemon.js', daemonArgs);
@@ -372,7 +371,6 @@ async function maybeDoCasino(ns, player) {
 	// Make sure "work-for-factions.js" is dead first, lest it steal focus and break the casino script before it has a chance to kill all scripts.
 	await killScript(ns, 'work-for-factions.js');
 
-	// TODO: Preserve the current script's state / args through the reset
 	const pid = launchScriptHelper(ns, 'casino.js', ['--kill-all-scripts', true, '--on-completion-script', ns.getScriptName()]);
 	if (pid) {
 		await waitForProcessToComplete(ns, pid);
@@ -407,6 +405,8 @@ async function maybeInstallAugmentations(ns, player) {
 		return reservedPurchase = 0;
 	}
 	const facman = JSON.parse(facmanOutput); // { affordable_nf_count: int, affordable_augs: [string], owned_count: int, unowned_count: int, total_rep_cost: number, total_aug_cost: number }
+	// TODO: Temporary Hack, don't count `Stanek's Gift - Genesis` in the list of affordable_augs if it's there, we will be skipping it for now
+	facman.affordable_augs = facman.affordable_augs.filter(a => a != `Stanek's Gift - Genesis`);
 	const affordableAugCount = facman.affordable_augs.length;
 	playerInstalledAugCount = facman.owned_count;
 
@@ -491,8 +491,8 @@ async function shouldDelayInstall(ns, player) {
 			(player.has4SData ? 0 : 1E9 * (bitnodeMults?.FourSigmaMarketDataCost || 1));
 		// If we're 50% of the way there, hold off, regardless of the '--wait-for-4s' setting
 		if (totalWorth / totalCost >= options['wait-for-4s-threshold']) {
-			setStatus(ns, `Not installing until scripts purchase the 4SDataTixApi because we have 
-				${(100 * totalWorth / totalCost).toFixed(0)}% of the cost (controlled by --wait-for-4s-threshold)`);
+			setStatus(ns, `Not installing until scripts purchase the 4SDataTixApi because we have ` +
+				`${(100 * totalWorth / totalCost).toFixed(0)}% of the cost (controlled by --wait-for-4s-threshold)`);
 			return true;
 		}
 	}
