@@ -43,7 +43,7 @@ const argsSchema = [ // The set of all command line arguments
     ['force-join', null], // Always join these factions if we have an invite (useful to force join a gang faction)
     // Augmentation purchasing-related options. Controls what augmentations are included in cost calculations, and optionally purchased
     ['priority-aug', []], // If accessible, every effort is made not to drop these from the sort purchase order.
-    ['omit-aug', []], // Augmentations to exclude from the augmentation list (e.g. because we do not wish to purchase it yet)
+    ['omit-aug', ["SoA - Beauty of Aphrodite","SoA - Chaos of Dionysus","SoA - Flood of Poseidon","SoA - Hunt of Artemis","SoA - Knowledge of Apollo","SoA - Might of Ares","SoA - Trickery of Hermes","SoA - Wisdom of Athena"]], // Augmentations to exclude from the augmentation list (e.g. because we do not wish to purchase it yet)
     ['aug-desired', []], // These augs will be marked as "desired" whether or not they match desired-stats
     ['stat-desired', []], // Augs that give these will be starred (marked as desired and staged for purchase). If empty, defaults are picked based on your situation.
     ['neuroflux-disabled', false], // Set to true to skip including as many neuroflux upgrades as we can afford
